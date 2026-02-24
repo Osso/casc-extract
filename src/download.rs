@@ -2,27 +2,17 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use cascette_crypto::EncodingKey;
-use cascette_formats::CascFormat;
-use cascette_formats::blte::BlteFile;
-use cascette_protocol::ContentType;
 
+use crate::archive::ArchiveManager;
 use crate::cdn::CdnSession;
 use crate::resolve::Resolver;
 
-pub async fn download_file(session: &CdnSession, ekey: &EncodingKey) -> Result<Vec<u8>> {
-    let key_bytes = ekey.as_bytes();
-    let raw = session
-        .cdn_client()
-        .download(session.endpoint(), ContentType::Data, key_bytes)
-        .await
-        .context("failed to download file from CDN")?;
-
-    let blte = BlteFile::parse(&raw)
-        .map_err(|e| anyhow::anyhow!("{e}"))
-        .context("failed to parse BLTE container")?;
-    blte.decompress()
-        .map_err(|e| anyhow::anyhow!("{e}"))
-        .context("failed to decompress BLTE data")
+pub async fn download_file(
+    archive_mgr: &ArchiveManager,
+    cdn: &CdnSession,
+    ekey: &EncodingKey,
+) -> Result<Vec<u8>> {
+    archive_mgr.download(cdn, ekey.as_bytes()).await
 }
 
 pub fn save_file(data: &[u8], output_dir: &Path, filename: &str) -> Result<()> {
@@ -37,11 +27,12 @@ pub fn save_file(data: &[u8], output_dir: &Path, filename: &str) -> Result<()> {
 }
 
 pub async fn download_and_save(
-    session: &CdnSession,
+    archive_mgr: &ArchiveManager,
+    cdn: &CdnSession,
     ekey: &EncodingKey,
     output_path: &Path,
 ) -> Result<()> {
-    let data = download_file(session, ekey).await?;
+    let data = download_file(archive_mgr, cdn, ekey).await?;
     let dir = output_path.parent().unwrap_or(Path::new("."));
     let filename = output_path
         .file_name()
@@ -51,16 +42,20 @@ pub async fn download_and_save(
 }
 
 pub async fn download_with_deps(
-    session: &CdnSession,
+    archive_mgr: &ArchiveManager,
+    cdn: &CdnSession,
     resolver: &Resolver,
     path: &str,
     output_dir: &Path,
 ) -> Result<()> {
-    download_single(session, resolver, path, output_dir).await?;
+    download_single(archive_mgr, cdn, resolver, path, output_dir).await?;
 
-    if let Some(skin_path) = m2_skin_path(path) {
+    let effective = effective_path_for(resolver, path);
+    let skin_source = effective.as_deref().unwrap_or(path);
+
+    if let Some(skin_path) = m2_skin_path(skin_source) {
         eprintln!("Downloading companion skin: {skin_path}");
-        match download_single(session, resolver, &skin_path, output_dir).await {
+        match download_single(archive_mgr, cdn, resolver, &skin_path, output_dir).await {
             Ok(()) => {}
             Err(e) => eprintln!("Warning: could not download skin {skin_path}: {e:#}"),
         }
@@ -69,16 +64,42 @@ pub async fn download_with_deps(
     Ok(())
 }
 
+fn effective_path_for(resolver: &Resolver, path: &str) -> Option<String> {
+    let id_str = path.strip_prefix("__fdid:")?;
+    let fdid: u32 = id_str.parse().ok()?;
+    resolver.path_for_fdid(fdid).map(|s| s.to_string())
+}
+
 async fn download_single(
-    session: &CdnSession,
+    archive_mgr: &ArchiveManager,
+    cdn: &CdnSession,
     resolver: &Resolver,
     path: &str,
     output_dir: &Path,
 ) -> Result<()> {
-    let ekey = resolver.resolve_path(path)?;
-    let data = download_file(session, &ekey).await?;
-    let filename = basename(path);
-    save_file(&data, output_dir, filename)
+    let (ekey, filename) = resolve_ekey_and_filename(resolver, path)?;
+    let data = download_file(archive_mgr, cdn, &ekey).await?;
+    save_file(&data, output_dir, &filename)
+}
+
+fn resolve_ekey_and_filename(
+    resolver: &Resolver,
+    path: &str,
+) -> Result<(EncodingKey, String)> {
+    if let Some(id_str) = path.strip_prefix("__fdid:") {
+        let fdid: u32 = id_str.parse().context("invalid fdid")?;
+        let ekey = resolver.resolve_fdid(fdid)?;
+        let filename = resolver
+            .path_for_fdid(fdid)
+            .and_then(|p| p.rsplit(['/', '\\']).next())
+            .unwrap_or(id_str)
+            .to_string();
+        Ok((ekey, filename))
+    } else {
+        let ekey = resolver.resolve_path(path)?;
+        let filename = basename(path).to_string();
+        Ok((ekey, filename))
+    }
 }
 
 fn m2_skin_path(path: &str) -> Option<String> {

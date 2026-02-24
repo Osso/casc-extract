@@ -1,3 +1,4 @@
+mod archive;
 mod cdn;
 mod download;
 mod resolve;
@@ -7,6 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+use crate::archive::ArchiveManager;
 use crate::resolve::Resolver;
 
 #[derive(Parser)]
@@ -36,6 +38,8 @@ enum Command {
         #[arg(long)]
         with_deps: bool,
     },
+    /// Diagnostic: check root file stats
+    Diag,
 }
 
 #[tokio::main]
@@ -50,6 +54,7 @@ async fn main() -> anyhow::Result<()> {
             output,
             with_deps,
         } => cmd_download(path, fdid, output, with_deps).await,
+        Command::Diag => cmd_diag(),
     }
 }
 
@@ -67,14 +72,13 @@ async fn cmd_init() -> Result<()> {
     let listfile_path = resolve::download_listfile().await?;
     eprintln!("Listfile cached to: {}", listfile_path.display());
 
-    save_build_id(
-        session
-            .cache_dir()
-            .file_name()
-            .and_then(|n| n.to_str())
-            .and_then(|n| n.strip_prefix("wow-"))
-            .context("unexpected cache dir name format")?,
-    )?;
+    eprintln!("Downloading archive indices...");
+    ArchiveManager::init(&session)
+        .await
+        .context("failed to initialise archive indices")?;
+    eprintln!("Archive indices cached.");
+
+    save_build_id(session.build_id())?;
 
     eprintln!("Init complete.");
     Ok(())
@@ -110,18 +114,103 @@ async fn cmd_download(
         .await
         .context("failed to connect to CDN")?;
 
+    let cache_dir = session.cache_dir();
+    let archive_mgr = ArchiveManager::load_cached(&cache_dir)
+        .context("failed to load cached archive indices — run `casc-extract init` first")?;
+
     let (root, encoding) = cdn::load_cached(&build_id)?;
     let mut resolver = Resolver::from_cached(&root, &encoding)?;
     resolver.load_listfile(&resolve::listfile_cache_path())?;
 
     if with_deps {
         eprintln!("Downloading {wow_path} with dependencies...");
-        download::download_with_deps(&session, &resolver, &wow_path, &output).await?;
+        download::download_with_deps(&archive_mgr, &session, &resolver, &wow_path, &output)
+            .await?;
     } else {
-        download_by_path(&session, &resolver, &wow_path, &output).await?;
+        download_by_path(&archive_mgr, &session, &resolver, &wow_path, &output).await?;
     }
 
     Ok(())
+}
+
+fn cmd_diag() -> Result<()> {
+    use cascette_formats::root::RootFile;
+
+    let build_id = load_build_id()?;
+    eprintln!("Build ID: {build_id}");
+    let (root, encoding) = cdn::load_cached(&build_id)?;
+    eprintln!("Root file: {} bytes", root.len());
+    eprintln!("Encoding file: {} bytes", encoding.len());
+
+    let resolver = Resolver::from_cached(&root, &encoding)?;
+    diag_probe_fdids(&resolver);
+
+    let root_file = RootFile::parse(&root).expect("parse root");
+    diag_print_root_stats(&root_file);
+    diag_probe_root_resolve(&root_file);
+    diag_sample_fdids(&root_file);
+    diag_resolve_first_fdid(&root_file, &resolver);
+
+    Ok(())
+}
+
+fn diag_probe_fdids(resolver: &Resolver) {
+    for fdid in [125024u32, 1011653, 1, 100, 1000, 10000, 100000, 500000] {
+        let found = resolver.resolve_fdid(fdid).is_ok();
+        eprintln!("FDID {fdid}: {}", if found { "FOUND" } else { "not found" });
+    }
+}
+
+fn diag_print_root_stats(root_file: &cascette_formats::root::RootFile) {
+    eprintln!("Root version: {:?}", root_file.version);
+    eprintln!("Root total_files: {}", root_file.total_files());
+    eprintln!("Root named_files: {}", root_file.named_files());
+    eprintln!("Root blocks: {}", root_file.num_blocks());
+    let (fdid_count, name_count) = root_file.lookup_stats();
+    eprintln!("Root lookup stats: fdid={fdid_count}, name={name_count}");
+}
+
+fn diag_probe_root_resolve(root_file: &cascette_formats::root::RootFile) {
+    use cascette_crypto::md5::FileDataId;
+    use cascette_formats::root::flags::{ContentFlags, LocaleFlags};
+
+    let content = ContentFlags::new(0);
+    let locale = LocaleFlags::new(LocaleFlags::ENUS);
+    for fdid in [125024u32, 1011653] {
+        let found = root_file.resolve_by_id(FileDataId::new(fdid), locale, content).is_some();
+        eprintln!("Direct resolve FDID {fdid}: {}", if found { "FOUND" } else { "not found" });
+    }
+    let locale_all = LocaleFlags::new(LocaleFlags::ALL);
+    for fdid in [125024u32, 1011653] {
+        let found = root_file.resolve_by_id(FileDataId::new(fdid), locale_all, content).is_some();
+        eprintln!("Direct resolve (ALL locale) FDID {fdid}: {}", if found { "FOUND" } else { "not found" });
+    }
+}
+
+fn diag_sample_fdids(root_file: &cascette_formats::root::RootFile) {
+    eprintln!("\nSampling first 10 FDIDs from root file blocks:");
+    let mut count = 0;
+    'outer: for block in &root_file.blocks {
+        for record in &block.records {
+            eprintln!("  Block FDID: {}", record.file_data_id.get());
+            count += 1;
+            if count >= 10 {
+                break 'outer;
+            }
+        }
+    }
+}
+
+fn diag_resolve_first_fdid(
+    root_file: &cascette_formats::root::RootFile,
+    resolver: &Resolver,
+) {
+    if let Some(first_record) = root_file.blocks.first().and_then(|b| b.records.first()) {
+        let test_fdid = first_record.file_data_id.get();
+        eprintln!("\nTrying to resolve first FDID {test_fdid} via ContentResolver...");
+        let found = resolver.resolve_fdid(test_fdid).is_ok();
+        eprintln!("Result: {}", if found { "FOUND" } else { "not found" });
+    }
 }
 
 fn resolve_download_target(path: Option<String>, fdid: Option<u32>) -> Result<String> {
@@ -134,6 +223,7 @@ fn resolve_download_target(path: Option<String>, fdid: Option<u32>) -> Result<St
 }
 
 async fn download_by_path(
+    archive_mgr: &ArchiveManager,
     session: &cdn::CdnSession,
     resolver: &Resolver,
     wow_path: &str,
@@ -148,13 +238,13 @@ async fn download_by_path(
             .unwrap_or(id_str);
         eprintln!("Downloading fdid={fdid} as {filename}...");
         let dest = output.join(filename);
-        download::download_and_save(session, &ekey, &dest).await?;
+        download::download_and_save(archive_mgr, session, &ekey, &dest).await?;
     } else {
         let ekey = resolver.resolve_path(wow_path)?;
         let filename = wow_path.rsplit(['/', '\\']).next().unwrap_or(wow_path);
         eprintln!("Downloading {wow_path}...");
         let dest = output.join(filename);
-        download::download_and_save(session, &ekey, &dest).await?;
+        download::download_and_save(archive_mgr, session, &ekey, &dest).await?;
     }
     Ok(())
 }
