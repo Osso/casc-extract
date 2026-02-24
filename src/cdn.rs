@@ -89,10 +89,12 @@ impl CdnSession {
         &self.build_id
     }
 
+    #[allow(dead_code)]
     pub fn cdn_client(&self) -> &CdnClient {
         &self.cdn_client
     }
 
+    #[allow(dead_code)]
     pub fn endpoint(&self) -> &CdnEndpoint {
         &self.endpoint
     }
