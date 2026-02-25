@@ -5,10 +5,10 @@ edition = "2024"
 rust-version = "1.89"
 
 [dependencies]
-cascette-protocol = { path = "/home/osso/Repos/cascette-rs/crates/cascette-protocol" }
-cascette-formats = { path = "/home/osso/Repos/cascette-rs/crates/cascette-formats" }
-cascette-client-storage = { path = "/home/osso/Repos/cascette-rs/crates/cascette-client-storage" }
-cascette-crypto = { path = "/home/osso/Repos/cascette-rs/crates/cascette-crypto" }
+cascette-protocol = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-protocol" }
+cascette-formats = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-formats" }
+cascette-client-storage = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-client-storage" }
+cascette-crypto = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-crypto" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
