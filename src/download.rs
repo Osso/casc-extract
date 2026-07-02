@@ -82,10 +82,7 @@ async fn download_single(
     save_file(&data, output_dir, &filename)
 }
 
-fn resolve_ekey_and_filename(
-    resolver: &Resolver,
-    path: &str,
-) -> Result<(EncodingKey, String)> {
+fn resolve_ekey_and_filename(resolver: &Resolver, path: &str) -> Result<(EncodingKey, String)> {
     if let Some(id_str) = path.strip_prefix("__fdid:") {
         let fdid: u32 = id_str.parse().context("invalid fdid")?;
         let ekey = resolver.resolve_fdid(fdid)?;

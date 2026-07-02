@@ -1,19 +1,18 @@
-mod archive;
-mod cdn;
-mod download;
-mod resolve;
-
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use casc_extract::archive::ArchiveManager;
+use casc_extract::cdn::{self, Product};
+use casc_extract::download;
+use casc_extract::resolve::{self, Resolver};
 use clap::{Parser, Subcommand};
-
-use crate::archive::ArchiveManager;
-use crate::resolve::Resolver;
 
 #[derive(Parser)]
 #[command(name = "casc-extract", about = "Download WoW assets from Blizzard CDN")]
 struct Cli {
+    /// Blizzard product code, for example "wow" or "wowt"
+    #[arg(long, default_value = "wow")]
+    product: String,
     #[command(subcommand)]
     command: Command,
 }
@@ -45,22 +44,26 @@ enum Command {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let product = Product::new(cli.product)?;
     match cli.command {
-        Command::Init => cmd_init().await,
-        Command::Search { pattern } => cmd_search(&pattern),
+        Command::Init => cmd_init(&product).await,
+        Command::Search { pattern } => cmd_search(&product, &pattern),
         Command::Download {
             path,
             fdid,
             output,
             with_deps,
-        } => cmd_download(path, fdid, output, with_deps).await,
-        Command::Diag => cmd_diag(),
+        } => cmd_download(&product, path, fdid, output, with_deps).await,
+        Command::Diag => cmd_diag(&product),
     }
 }
 
-async fn cmd_init() -> Result<()> {
-    eprintln!("Connecting to Blizzard CDN...");
-    let session = cdn::CdnSession::connect()
+async fn cmd_init(product: &Product) -> Result<()> {
+    eprintln!(
+        "Connecting to Blizzard CDN for product {}...",
+        product.name()
+    );
+    let session = cdn::CdnSession::connect_product(product.clone())
         .await
         .context("failed to connect to CDN")?;
 
@@ -78,15 +81,15 @@ async fn cmd_init() -> Result<()> {
         .context("failed to initialise archive indices")?;
     eprintln!("Archive indices cached.");
 
-    save_build_id(session.build_id())?;
+    save_build_id(product, session.build_id())?;
 
     eprintln!("Init complete.");
     Ok(())
 }
 
-fn cmd_search(pattern: &str) -> Result<()> {
-    let build_id = load_build_id()?;
-    let (root, encoding) = cdn::load_cached(&build_id)?;
+fn cmd_search(product: &Product, pattern: &str) -> Result<()> {
+    let build_id = load_build_id(product)?;
+    let (root, encoding) = cdn::load_cached_product(product, &build_id)?;
     let mut resolver = Resolver::from_cached(&root, &encoding)?;
     resolver.load_listfile(&resolve::listfile_cache_path())?;
 
@@ -101,6 +104,7 @@ fn cmd_search(pattern: &str) -> Result<()> {
 }
 
 async fn cmd_download(
+    product: &Product,
     path: Option<String>,
     fdid: Option<u32>,
     output: PathBuf,
@@ -108,9 +112,12 @@ async fn cmd_download(
 ) -> Result<()> {
     let wow_path = resolve_download_target(path, fdid)?;
 
-    let build_id = load_build_id()?;
-    eprintln!("Connecting to Blizzard CDN...");
-    let session = cdn::CdnSession::connect()
+    let build_id = load_build_id(product)?;
+    eprintln!(
+        "Connecting to Blizzard CDN for product {}...",
+        product.name()
+    );
+    let session = cdn::CdnSession::connect_product(product.clone())
         .await
         .context("failed to connect to CDN")?;
 
@@ -118,14 +125,13 @@ async fn cmd_download(
     let archive_mgr = ArchiveManager::load_cached(&cache_dir)
         .context("failed to load cached archive indices — run `casc-extract init` first")?;
 
-    let (root, encoding) = cdn::load_cached(&build_id)?;
+    let (root, encoding) = cdn::load_cached_product(product, &build_id)?;
     let mut resolver = Resolver::from_cached(&root, &encoding)?;
     resolver.load_listfile(&resolve::listfile_cache_path())?;
 
     if with_deps {
         eprintln!("Downloading {wow_path} with dependencies...");
-        download::download_with_deps(&archive_mgr, &session, &resolver, &wow_path, &output)
-            .await?;
+        download::download_with_deps(&archive_mgr, &session, &resolver, &wow_path, &output).await?;
     } else {
         download_by_path(&archive_mgr, &session, &resolver, &wow_path, &output).await?;
     }
@@ -133,12 +139,12 @@ async fn cmd_download(
     Ok(())
 }
 
-fn cmd_diag() -> Result<()> {
+fn cmd_diag(product: &Product) -> Result<()> {
     use cascette_formats::root::RootFile;
 
-    let build_id = load_build_id()?;
+    let build_id = load_build_id(product)?;
     eprintln!("Build ID: {build_id}");
-    let (root, encoding) = cdn::load_cached(&build_id)?;
+    let (root, encoding) = cdn::load_cached_product(product, &build_id)?;
     eprintln!("Root file: {} bytes", root.len());
     eprintln!("Encoding file: {} bytes", encoding.len());
 
@@ -177,13 +183,23 @@ fn diag_probe_root_resolve(root_file: &cascette_formats::root::RootFile) {
     let content = ContentFlags::new(0);
     let locale = LocaleFlags::new(LocaleFlags::ENUS);
     for fdid in [125024u32, 1011653] {
-        let found = root_file.resolve_by_id(FileDataId::new(fdid), locale, content).is_some();
-        eprintln!("Direct resolve FDID {fdid}: {}", if found { "FOUND" } else { "not found" });
+        let found = root_file
+            .resolve_by_id(FileDataId::new(fdid), locale, content)
+            .is_some();
+        eprintln!(
+            "Direct resolve FDID {fdid}: {}",
+            if found { "FOUND" } else { "not found" }
+        );
     }
     let locale_all = LocaleFlags::new(LocaleFlags::ALL);
     for fdid in [125024u32, 1011653] {
-        let found = root_file.resolve_by_id(FileDataId::new(fdid), locale_all, content).is_some();
-        eprintln!("Direct resolve (ALL locale) FDID {fdid}: {}", if found { "FOUND" } else { "not found" });
+        let found = root_file
+            .resolve_by_id(FileDataId::new(fdid), locale_all, content)
+            .is_some();
+        eprintln!(
+            "Direct resolve (ALL locale) FDID {fdid}: {}",
+            if found { "FOUND" } else { "not found" }
+        );
     }
 }
 
@@ -201,10 +217,7 @@ fn diag_sample_fdids(root_file: &cascette_formats::root::RootFile) {
     }
 }
 
-fn diag_resolve_first_fdid(
-    root_file: &cascette_formats::root::RootFile,
-    resolver: &Resolver,
-) {
+fn diag_resolve_first_fdid(root_file: &cascette_formats::root::RootFile, resolver: &Resolver) {
     if let Some(first_record) = root_file.blocks.first().and_then(|b| b.records.first()) {
         let test_fdid = first_record.file_data_id.get();
         eprintln!("\nTrying to resolve first FDID {test_fdid} via ContentResolver...");
@@ -249,30 +262,32 @@ async fn download_by_path(
     Ok(())
 }
 
-fn build_id_file() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(home)
-        .join(".cache")
-        .join("casc-extract")
-        .join("build-id.txt")
+fn build_id_file(product: &Product) -> PathBuf {
+    let filename = if product.name() == "wow" {
+        "build-id.txt".to_string()
+    } else {
+        format!("build-id-{}.txt", product.name())
+    };
+    cdn::default_cache_root().join(filename)
 }
 
-fn save_build_id(build_id: &str) -> Result<()> {
-    let path = build_id_file();
+fn save_build_id(product: &Product, build_id: &str) -> Result<()> {
+    let path = build_id_file(product);
     std::fs::create_dir_all(path.parent().expect("build-id path has parent"))
         .context("failed to create cache dir")?;
     std::fs::write(&path, build_id)
         .with_context(|| format!("failed to write build id to {}", path.display()))?;
-    eprintln!("Build ID saved: {build_id}");
+    eprintln!("Build ID saved for product {}: {build_id}", product.name());
     Ok(())
 }
 
-fn load_build_id() -> Result<String> {
-    let path = build_id_file();
+fn load_build_id(product: &Product) -> Result<String> {
+    let path = build_id_file(product);
     std::fs::read_to_string(&path).with_context(|| {
         format!(
-            "failed to read build ID from {} — run `casc-extract init` first",
-            path.display()
+            "failed to read build ID from {} — run `casc-extract --product {} init` first",
+            path.display(),
+            product.name()
         )
     })
 }
