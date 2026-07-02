@@ -2,13 +2,13 @@
 name = "casc-extract"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.92"
 
 [dependencies]
-cascette-protocol = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-protocol" }
-cascette-formats = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-formats" }
-cascette-client-storage = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-client-storage" }
-cascette-crypto = { git = "https://github.com/Osso/cascette-rs", path = "crates/cascette-crypto" }
+cascette-protocol = { git = "https://github.com/Osso/cascette-rs", rev = "3992ef0fb9a81f10841a763619440a68647611ff" }
+cascette-formats = { git = "https://github.com/Osso/cascette-rs", rev = "3992ef0fb9a81f10841a763619440a68647611ff" }
+cascette-client-storage = { git = "https://github.com/Osso/cascette-rs", rev = "3992ef0fb9a81f10841a763619440a68647611ff" }
+cascette-crypto = { git = "https://github.com/Osso/cascette-rs", rev = "3992ef0fb9a81f10841a763619440a68647611ff" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
