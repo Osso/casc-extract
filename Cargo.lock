@@ -249,7 +249,7 @@ dependencies = [
 [[package]]
 name = "cascette-cache"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=3992ef0fb9a81f10841a763619440a68647611ff#3992ef0fb9a81f10841a763619440a68647611ff"
+source = "git+https://github.com/Osso/cascette-rs?rev=d8ec31f4dabaaff80af64b2510c54104a1871fec#d8ec31f4dabaaff80af64b2510c54104a1871fec"
 dependencies = [
  "async-trait",
  "base64",
@@ -276,7 +276,7 @@ dependencies = [
 [[package]]
 name = "cascette-client-storage"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=3992ef0fb9a81f10841a763619440a68647611ff#3992ef0fb9a81f10841a763619440a68647611ff"
+source = "git+https://github.com/Osso/cascette-rs?rev=d8ec31f4dabaaff80af64b2510c54104a1871fec#d8ec31f4dabaaff80af64b2510c54104a1871fec"
 dependencies = [
  "binrw",
  "cascette-crypto",
@@ -300,7 +300,7 @@ dependencies = [
 [[package]]
 name = "cascette-crypto"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=3992ef0fb9a81f10841a763619440a68647611ff#3992ef0fb9a81f10841a763619440a68647611ff"
+source = "git+https://github.com/Osso/cascette-rs?rev=d8ec31f4dabaaff80af64b2510c54104a1871fec#d8ec31f4dabaaff80af64b2510c54104a1871fec"
 dependencies = [
  "binrw",
  "cipher",
@@ -313,7 +313,7 @@ dependencies = [
 [[package]]
 name = "cascette-formats"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=3992ef0fb9a81f10841a763619440a68647611ff#3992ef0fb9a81f10841a763619440a68647611ff"
+source = "git+https://github.com/Osso/cascette-rs?rev=d8ec31f4dabaaff80af64b2510c54104a1871fec#d8ec31f4dabaaff80af64b2510c54104a1871fec"
 dependencies = [
  "binrw",
  "cascette-crypto",
@@ -329,7 +329,7 @@ dependencies = [
 [[package]]
 name = "cascette-protocol"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=3992ef0fb9a81f10841a763619440a68647611ff#3992ef0fb9a81f10841a763619440a68647611ff"
+source = "git+https://github.com/Osso/cascette-rs?rev=d8ec31f4dabaaff80af64b2510c54104a1871fec#d8ec31f4dabaaff80af64b2510c54104a1871fec"
 dependencies = [
  "asn1",
  "async-trait",
@@ -2298,7 +2298,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82a72c767771b47409d2345987fda8628641887d5466101319899796367354a0"
 dependencies = [
  "fastrand",
- "getrandom 0.4.1",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
