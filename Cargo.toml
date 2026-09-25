@@ -5,10 +5,10 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
-cascette-protocol = { git = "https://github.com/Osso/cascette-rs", rev = "49c35a0bdff368552dce1ccfdbd7641aded72798" }
-cascette-formats = { git = "https://github.com/Osso/cascette-rs", rev = "49c35a0bdff368552dce1ccfdbd7641aded72798" }
-cascette-client-storage = { git = "https://github.com/Osso/cascette-rs", rev = "49c35a0bdff368552dce1ccfdbd7641aded72798" }
-cascette-crypto = { git = "https://github.com/Osso/cascette-rs", rev = "49c35a0bdff368552dce1ccfdbd7641aded72798" }
+cascette-protocol = { git = "https://github.com/Osso/cascette-rs", rev = "758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48" }
+cascette-formats = { git = "https://github.com/Osso/cascette-rs", rev = "758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48" }
+cascette-client-storage = { git = "https://github.com/Osso/cascette-rs", rev = "758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48" }
+cascette-crypto = { git = "https://github.com/Osso/cascette-rs", rev = "758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"

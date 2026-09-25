@@ -249,7 +249,7 @@ dependencies = [
 [[package]]
 name = "cascette-cache"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=49c35a0bdff368552dce1ccfdbd7641aded72798#49c35a0bdff368552dce1ccfdbd7641aded72798"
+source = "git+https://github.com/Osso/cascette-rs?rev=758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48#758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48"
 dependencies = [
  "async-trait",
  "base64",
@@ -276,7 +276,7 @@ dependencies = [
 [[package]]
 name = "cascette-client-storage"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=49c35a0bdff368552dce1ccfdbd7641aded72798#49c35a0bdff368552dce1ccfdbd7641aded72798"
+source = "git+https://github.com/Osso/cascette-rs?rev=758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48#758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48"
 dependencies = [
  "binrw",
  "cascette-crypto",
@@ -301,7 +301,7 @@ dependencies = [
 [[package]]
 name = "cascette-crypto"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=49c35a0bdff368552dce1ccfdbd7641aded72798#49c35a0bdff368552dce1ccfdbd7641aded72798"
+source = "git+https://github.com/Osso/cascette-rs?rev=758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48#758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48"
 dependencies = [
  "binrw",
  "cipher",
@@ -314,7 +314,7 @@ dependencies = [
 [[package]]
 name = "cascette-formats"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=49c35a0bdff368552dce1ccfdbd7641aded72798#49c35a0bdff368552dce1ccfdbd7641aded72798"
+source = "git+https://github.com/Osso/cascette-rs?rev=758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48#758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48"
 dependencies = [
  "binrw",
  "cascette-crypto",
@@ -330,7 +330,7 @@ dependencies = [
 [[package]]
 name = "cascette-protocol"
 version = "0.2.0"
-source = "git+https://github.com/Osso/cascette-rs?rev=49c35a0bdff368552dce1ccfdbd7641aded72798#49c35a0bdff368552dce1ccfdbd7641aded72798"
+source = "git+https://github.com/Osso/cascette-rs?rev=758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48#758d8dbfbc64d500b2f8f5b5c133d9f82fa79a48"
 dependencies = [
  "asn1",
  "async-trait",
